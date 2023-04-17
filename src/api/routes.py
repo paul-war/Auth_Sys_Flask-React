@@ -10,47 +10,38 @@ from flask_jwt_extended import get_jwt_identity
 from flask_jwt_extended import jwt_required
 from flask_jwt_extended import JWTManager
 
-app = Flask(__name__)
-
 api = Blueprint('api', __name__)
 
 
-@api.route('/hello', methods=['POST', 'GET'])
-def handle_hello():
+@api.route("/signup", methods=["POST"])
+def signup():
+    email = request.json.get("email", None)
+    password = request.json.get("password", None)
+    if not email or not password:
+        return jsonify({"msg": "An username and password must be entered."}), 400
+    check_if_exist = User.query.filter_by(email = email).first()
+    if check_if_exist:
+        return jsonify({"msg": "Email in use"})
+    user = User(email = email,
+                password = password)
+    db.session.add(user)
+    db.session.commit()
+    return jsonify({"username_added": email}), 200
 
-    response_body = {
-        "message": "Hello! I'm a message that came from the backend, check the network tab on the google inspector and you will see the GET request"
-    }
-
-    return jsonify(response_body), 200
-
-# Create a route to authenticate your users and return JWTs. The
-# create_access_token() function is used to actually generate the JWT.
 @api.route("/login", methods=["POST"])
 def login():
-    username = request.json.get("username", None)
+    email = request.json.get("email", None)
     password = request.json.get("password", None)
-    if username != "test" or password != "test":
-        return jsonify({"msg": "Bad username or password"}), 401
+    user = User.query.filter_by(email = email).first()
+    if user:
+        access_token = create_access_token(identity=email)
+        return jsonify(access_token=access_token), 200
+    else:
+        return jsonify({"msg": "User not found"}), 404
 
-    access_token = create_access_token(identity=username)
-    response_body = {"login": "ok", 
-                     "access_token": access_token}
-    return jsonify(response_body), 200
-
-
-
-
-# Protect a route with jwt_required, which will kick out requests
-# without a valid JWT present.
-
-@api.route("/private", methods=["GET"])
-@jwt_required() #si no recibe un token válido, lo va a devolver
+@api.route("/protected", methods=["GET"])
+@jwt_required()
 def protected():
     # Access the identity of the current user with get_jwt_identity
     current_user = get_jwt_identity()
     return jsonify(logged_in_as=current_user), 200
-
-
-if __name__ == "__main__":
-    app.run()
